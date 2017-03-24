@@ -1,10 +1,11 @@
 var request = require('request');
 var cheerio = require('cheerio');
-var $url = require('url');
+var _url = require('url');
+var rp = require('request-promise');
 
 var insertToTheseSites = [
-    // 'http://localhost:8080/wordpress',
-    'http://magiangiatot.com',
+    'http://localhost:8080/wordpress',
+    // 'http://magiangiatot.com',
     // 'http://magiamgiatot.top'
 ];
 
@@ -47,11 +48,10 @@ var getCoupons = function (url) {
             }else if(url.indexOf('giutcoupon.com') > -1 || url.indexOf('magiamgia.com') > -1){
                 data = getCoupons_MaGiamGiaDotCom($, url)
             }
-            // console.log(data.coupons)
-            console.timeEnd('timeGetCoupons');
-            sendCouponsToApi(data)
+            console.log(data.coupons)
+            // sendCouponsToApi(data);
         }else{
-            console.log('Error status code: ', response.statusCode)
+            console.log('Error status code: ', response.statusCode);
         }
     })
 };
@@ -174,24 +174,24 @@ var getCoupons_MaGiamGiaDotCom = function ($, url) {
     return response
 };
 
+// 1
 var getPosts = function (url) {
     request(url, function(error, response, body) {
         if(error) {
-            console.log("Error: " + error)
+            console.log("Error: " + error);
         }
         if(response.statusCode === 200) {
-            var data = [];
             var $ = cheerio.load(body);
             if(url.indexOf('offers.vn') > -1 ){
-                getPost_offersDotVn($, url)
+                getPost_offersDotVn($, url);
             }
-            console.timeEnd('timeGetPosts');
         }else{
             console.log('Error status code: ', response.statusCode)
         }
     })
 };
 
+// 2
 var getPost_offersDotVn = function ($, url) {
     var pages = [];
     // Get number of pages
@@ -201,7 +201,6 @@ var getPost_offersDotVn = function ($, url) {
             pages.push(page)
     });
     // Get post urls page by page
-    var postUrls = [];
     for(var i = 0;i < pages.length; i++){
         var subPage = url + 'page/' + pages[i];
         request(subPage, function(error, response, body) {
@@ -222,9 +221,8 @@ var getPost_offersDotVn = function ($, url) {
         })
     }
 };
-
+// 3
 var getPostDetail_offerDotVn = function (href) {
-    // console.time('getPost');
     request(href, function(error, response, body) {
         if(response.statusCode === 200) {
             var post = [];
@@ -233,12 +231,12 @@ var getPostDetail_offerDotVn = function (href) {
             $('.yuzo_related_post').remove();
             $('style').remove();
             post['imgs'] = [];
-            var domain = $url.parse(href).hostname;
+            var domain = _url.parse(href).hostname;
             $('.entry-content img').each(function (i, el) {
                 var src = $(this).attr('src');
                 if (src.indexOf('facebook') === -1){
                     src = src.replace(/\/wp-content\/uploads/g, 'https://' + domain + '/wp-content/uploads');
-                    post['imgs'].push(src)
+                    post['imgs'].push(src);
                 }
             });
             var content = $('.entry-content').html();
@@ -256,8 +254,8 @@ var getPostDetail_offerDotVn = function (href) {
             };
 
             // console.log(post);
-            // console.timeEnd('getPost');
-            sendPostToApi(post);
+            // sendPostToApi(post);
+            // arrPosts.push(post);
         }else{
             console.log('Error status code: ', response.statusCode);
         }
@@ -285,16 +283,18 @@ var sendCouponsToApi = function (arrCoupons) {
         };
         // Start the request
         request(options, function (error, response, body) {
-            if (!error && response.statusCode == 200) {
-                console.log(body)
+            if (response.statusCode === 200) {
+                console.log(body);
+            }else{
+                console.log(response.statusCode);
             }
         })
     }
 
 };
 
-var sendPostToApi = function (post) {
-    console.time('addPost');
+// 4
+var sendPostToApi = function (post, index) {
     var data = {
         action: 'api_add_post',
         post: post
@@ -315,29 +315,120 @@ var sendPostToApi = function (post) {
         };
         // Start the request
         request(options, function (error, response, body) {
-            // console.log(response.statusCode);
-            if (!error && response.statusCode == 200) {
-                console.log(body);
-                console.timeEnd('addPost');
+            console.timeEnd('sendPost_'+index);
+            console.log('-----------------------------------------------------------------------');
+            if (response.statusCode === 200) {
+                console.log('response of request ' + index, body);
+            }else{
+                console.log('response of request ' + index, response.statusCode);
             }
-
         })
     }
 };
-
-// console.time('start')
-// console.time('timeGetCoupons')
-// console.time('timeResponseFromApi')
-console.time('timeGetPosts');
 
 // for(var i = 0;i < arrStoreUrls.length; i++){
 //     getCoupons(arrStoreUrls[i])
 // }
 
 // Get post blogs
-for(var i = 0;i < arrPostsUrl.length; i++){
-    getPosts(arrPostsUrl[i]);
-}
+// for(var i = 0;i < arrPostsUrl.length; i++){
+//     getPosts(arrPostsUrl[i]);
+// }
 
-// test
-// getPostDetail_offerDotVn('https://www.offers.vn/thoi-quen-doc-sach/');
+var runGetPost = function () {
+    var arrQueriesPosts = [];
+    for(var i = 0; i<arrPostsUrl.length; i++){
+        var queryPost = rp(url = arrPostsUrl[i])
+            .then(function (body) {
+                var $ = cheerio.load(body);
+                if(url.indexOf('offers.vn') > -1 ){
+                    // Get number of pages
+                    var pages = [];
+                    $('.archive-pagination li').each(function (i, el) {
+                        var page = parseInt($(this).text());
+                        if(page)
+                            pages.push(page)
+                    });
+                    // Get post urls page by page
+                    var queryPostUrls = [];
+                    var ListPostUrls = [];
+                    for(var i = 0;i < pages.length; i++){
+                        var subPage = url + 'page/' + pages[i];
+                        var getListPostUrls = rp(subPage).then(function (body) {
+                            var $ = cheerio.load(body);
+                            $('.type-post').each(function (i, el) {
+                                var href = $(this).find('.entry-title a').attr('href');
+                                ListPostUrls.push(href);
+                            })
+                        });
+                        queryPostUrls.push(getListPostUrls);
+                    }
+
+                    var queryPostDetail = [];
+                    var arrPosts = [];
+                    Promise.all(queryPostUrls)
+                        .then(function() {
+                            // console.log(ListPostUrls);
+                            for(var i = 0;i < ListPostUrls.length; i++){
+                                var getPostDetail = rp(href = ListPostUrls[i]).then(function (body) {
+                                    var $ = cheerio.load(body);
+                                    var post = [];
+                                    post['title'] = $('.entry-title').text();
+                                    $('.yuzo_related_post').remove();
+                                    $('style').remove();
+                                    post['imgs'] = [];
+                                    var domain = _url.parse(href).hostname;
+                                    $('.entry-content img').each(function (i, el) {
+                                        var src = $(this).attr('src');
+                                        if (src.indexOf('facebook') === -1){
+                                            src = src.replace(/\/wp-content\/uploads/g, 'https://' + domain + '/wp-content/uploads');
+                                            post['imgs'].push(src);
+                                        }
+                                    });
+                                    var content = $('.entry-content').html();
+                                    // remove href from link
+                                    content = content.replace(/<a href=\"(.*?)\">(.*?)<\/a>/g, '');
+                                    //remove attribute Srcset
+                                    content = content.replace('/srcset=\"(.*?)\"/', '');
+                                    // remove style tag
+                                    content = content.replace(/<style>(.*?)<\/style>/g, '');
+                                    content = content.replace(/width:(.*?)\"/g, '');
+                                    content = content.replace(/width=\"(.*?)\"/g, 'width="100%"');
+                                    post['content'] = content.replace(/\/wp-content\/uploads/g, 'https://' + domain + '/wp-content/uploads');
+                                    post['postmeta'] = {
+                                        post_source: href
+                                    };
+                                    arrPosts.push(post);
+                                });
+                                queryPostDetail.push(getPostDetail);
+                            }
+                        })
+                        .then(function () {
+                            Promise.all(queryPostDetail).then(function() {
+                                console.log('Posts found:' + arrPosts.length);
+                                console.time('sendToApi');
+
+                                var interval = 3 * 1000; // 1 seconds;
+                                for(var i = 0;i < arrPosts.length; i++){
+                                    setTimeout( function (i) {
+                                        console.log('Send post ', i);
+                                        console.time('sendPost_'+i);
+                                        sendPostToApi(arrPosts[i], i);
+                                    }, interval * i, i);
+                                }
+
+                            })
+                        });
+                }
+            })
+            .catch(function (err) {
+                // Crawling failed...
+                console.log(err);
+            });
+        arrQueriesPosts.push(queryPost);
+    }
+    Promise.all(arrQueriesPosts).then(function () {
+        console.log('done');
+    })
+};
+runGetPost();
